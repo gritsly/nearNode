@@ -1,0 +1,17 @@
+[Unit]
+Description=NEARd Daemon Service
+
+[Service]
+Type=simple
+User={{ ansible_user }}
+#Group=near
+WorkingDirectory=/home/{{ ansible_user }}/.near
+ExecStart=/home/{{ ansible_user }}/nearcore/target/release/neard run
+Restart=on-failure
+RestartSec=30
+KillSignal=SIGINT
+TimeoutStopSec=45
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target

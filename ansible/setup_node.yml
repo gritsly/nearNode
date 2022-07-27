@@ -1,0 +1,137 @@
+---
+# Update server & restart if needed
+
+- hosts: servers
+  become: yes
+  tasks:
+    - name: Update apt repo and cache on all Debian/Ubuntu boxes
+      apt: update_cache=yes force_apt_get=yes cache_valid_time=3600
+
+    - name: Upgrade all packages on servers
+      apt: upgrade=dist force_apt_get=yes
+
+    - name: Check if a reboot is needed on all servers
+      register: reboot_required_file
+      stat: path=/var/run/reboot-required get_md5=no
+
+    - name: Reboot the box if kernel updated
+      reboot:
+        msg: "Reboot initiated by Ansible for kernel updates"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: uptime
+      when: reboot_required_file.stat.exists
+
+# Install near
+
+- hosts: servers
+  tasks:
+    - name: Get nodejs
+      shell: curl -sL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    
+    - name: Install nodejs & npm
+      apt: 
+        name : "{{ item }}"
+        state: present
+      with_items:
+        - build-essential
+        - nodejs
+      become: yes
+
+    - name: Update npm
+      community.general.npm:
+        name: npm
+        global: yes
+        state: latest
+      become: yes
+    
+    - name: Check node version
+      command: node -v
+      register: version_output
+    - debug:
+        var: version_output.stdout_lines
+
+    - name: install nearcli
+      community.general.npm:
+        name: near-cli
+        global: yes
+        path: /usr/local/bin/
+      become: yes
+    
+    - name: add nearcli to bashrc
+      lineinfile: dest=/home/{{ ansible_user}}/.bashrc line='export NEAR_ENV=shardnet' insertafter='EOF' state=present
+
+    - name: Get developer tools
+      apt: 
+        name : "{{ item }}"
+        state: present
+      with_items:
+        - git 
+        - binutils-dev
+        - libcurl4-openssl-dev
+        - zlib1g-dev
+        - libdw-dev
+        - libiberty-dev
+        - cmake
+        - gcc
+        - g++
+        - python3
+        - docker.io
+        - protobuf-compiler
+        - libssl-dev
+        - pkg-config 
+        - clang
+        - llvm
+        - cargo
+        - python3-pip
+        - clang
+        - make
+      become: yes
+    
+    - name: Upgrade pip
+      pip:
+        name: pip
+        state: latest
+
+    - name: Fetch rustup
+      uri: 
+        url: https://sh.rustup.rs
+        return_content: yes
+      register: rustup_installer
+
+    - name: Install rustup
+      shell: 
+        cmd: sh -s -- -y
+        stdin: "{{ rustup_installer.content }}"
+
+    - name: Source environment
+      shell: source $HOME/.cargo/env
+      args:
+        executable: /bin/bash
+
+#    - name: Get current commit
+#      uri: 
+#        url: https://raw.githubusercontent.com/near/stakewars-iii/main/commit.md
+#        return_content: yes
+#      register: current_commit
+
+    - name: Clone a repo with separate git directory
+      git:
+        repo: https://github.com/near/nearcore
+        dest: /home/{{ ansible_user }}/nearcore
+        version: shardnet
+        force: yes
+
+# TOFIX:   
+#    - name: compile nearcore binary
+#      command: cargo build -p neard --release --features shardnet
+#      args:
+#        chdir: /home/{{ ansible_user }}/nearcore
+
+
+
+
+
+      

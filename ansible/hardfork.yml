@@ -1,0 +1,30 @@
+---
+# Do hard fork
+
+- hosts: servers
+  tasks:
+    - name: Stop neard service
+      systemd:
+        name: neard
+        state: stopped
+      become: yes
+
+    - name: remove data folder
+      file:
+       path: ~/.near/data
+       state: absent
+
+    - name: get genesis.json
+      get_url:
+        url: https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore-deploy/shardnet/genesis.json.xz
+        dest: ~/.near/
+
+    - name: extract genesis.json
+      command: unxz --force ~/.near/genesis.json.xz
+
+    - name: Start neard service
+      systemd:
+        name: neard
+        state: restarted
+      become: yes
+      
