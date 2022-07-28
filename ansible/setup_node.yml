@@ -159,6 +159,7 @@
       systemd:
         name: neard
         state: started
+        enabled: yes
       become: yes
 
     - name: Create scripts directory
