@@ -1,0 +1,16 @@
+#!/bin/sh
+# check status of pool script
+
+curl -s http://127.0.0.1:3030/status | jq .version
+
+####### Check Delegators and Stake Command:
+
+near view {{ pool_id }}.factory.shardnet.near get_accounts '{"from_index": 0, "limit": 10}' --accountId {{ account_id }}.shardnet.near
+
+####### Check Reason Validator Kicked Command:
+
+curl -s -d '{"jsonrpc": "2.0", "method": "validators", "id": "dontcare", "params": [null]}' -H 'Content-Type: application/json' 127.0.0.1:3030 | jq -c '.result.prev_epoch_kickout[] | select(.account_id | contains ("{{ pool_id }}"))' | jq .reason
+
+####### Check Blocks Produced / Expected Command:
+
+curl -s -d '{"jsonrpc": "2.0", "method": "validators", "id": "dontcare", "params": [null]}' -H 'Content-Type: application/json' 127.0.0.1:3030 | jq -c '.result.current_validators[] | select(.account_id | contains ("{{ pool_id }}"))'

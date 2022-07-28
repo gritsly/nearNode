@@ -8,11 +8,23 @@
         name: neard
         state: stopped
       become: yes
-
+    
     - name: remove data folder
       file:
        path: ~/.near/data
        state: absent
+
+    - name: Clone a repo with separate git directory
+      git:
+        repo: https://github.com/near/nearcore
+        dest: ~/nearcore
+        version: shardnet
+        force: yes
+
+    - name: compile nearcore binary
+      command: ~/.cargo/bin/cargo build -p neard --release --features shardnet
+      args:
+        chdir: ~/nearcore
 
     - name: get genesis.json
       get_url:
@@ -21,6 +33,13 @@
 
     - name: extract genesis.json
       command: unxz --force ~/.near/genesis.json.xz
+
+    - name: get config.json
+      get_url:
+        url: https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore-deploy/shardnet/config.json
+        dest: ~/.near/config.json
+        backup: yes
+        force: yes
 
     - name: Start neard service
       systemd:
