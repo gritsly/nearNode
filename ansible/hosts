@@ -1,10 +1,10 @@
 ## set up ssh user name and path to python3 ##
 [all:vars]
-ansible_user='stakewars'
+ansible_user='<youruser>'
 ansible_become_method=sudo
 ansible_python_interpreter='/usr/bin/env python3'
-pool_id=gritsly
-account_id=gritsly
+pool_id=<yourpoolid>
+account_id=<youraccountid>
 ###########################
 [servers]
-stakewars.gritsly.link
+<yourserveriporhostname>
