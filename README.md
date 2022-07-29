@@ -9,9 +9,10 @@ https://near.org/stakewars/
 - Terraform : defined a resource using Hetzner cloud
 
 
-- Ansible: defined two playbooks:
+- Ansible: defined three playbooks:
   - setup_node.yml - deploys all required packages and configurations for challenges 001-006. User must do the near-cli parts manually (login, create pool, etc.)
   - hardfork.yml - redownloads nearcore, genesis etc. Automates hard fork of shardnet
+  - newbinary.yml - only recompiles nearcore to new commit
 
 ## How-To:
 
