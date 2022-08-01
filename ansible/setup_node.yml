@@ -4,6 +4,10 @@
 - hosts: servers
   become: yes
   tasks:
+    - name: Set hostname
+      hostname:
+        name: "{{ inventory_hostname }}"
+
     - name: Update apt repo and cache on all Debian/Ubuntu boxes
       apt: update_cache=yes force_apt_get=yes cache_valid_time=3600
 
@@ -161,31 +165,3 @@
         state: started
         enabled: yes
       become: yes
-
-    - name: Create scripts directory
-      file:
-        path: ~/scripts
-        state: directory
-
-    - name: Create logs directory
-      file:
-        path: ~/logs
-        state: directory
-
-    - name: Create checkscript
-      template:
-        src: templates/checkscript.j2
-        dest: ~/scripts/checkscript.sh
-
-    - name: Create pingscript
-      template:
-        src: templates/ping.j2
-        dest: ~/scripts/ping.sh
-
-    - name: Creates a ping crontab
-      cron:
-        name: ping staking pool
-        minute: "0"
-        hour: "*/2"
-        user: "{{ ansible_user }}"
-        job: sh /home/{{ ansible_user }}/scripts/ping.sh

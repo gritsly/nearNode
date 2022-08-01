@@ -1,0 +1,96 @@
+---
+# Start validating
+
+- hosts: servers
+  tasks:
+    - name: Create scripts directory
+      file:
+        path: ~/scripts
+        state: directory
+
+    - name: Create logs directory
+      file:
+        path: ~/logs
+        state: directory
+
+    - name: Create checkscript
+      template:
+        src: templates/checkscript.j2
+        dest: ~/scripts/checkscript.sh
+
+    - name: Create pingscript
+      template:
+        src: templates/ping.j2
+        dest: ~/scripts/ping.sh
+
+    - name: Creates a ping crontab
+      cron:
+        name: ping staking pool
+        minute: "0"
+        hour: "*/2"
+        user: "{{ ansible_user }}"
+        job: sh /home/{{ ansible_user }}/scripts/ping.sh
+
+# Setup ufw & mailutils
+- hosts: servers
+  become: yes
+  tasks:
+    - community.general.ufw:
+        rule: allow
+        name: OpenSSH
+
+    - name: ufw incoming policy
+      community.general.ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
+
+    - name: ufw outgoing policy
+      community.general.ufw:
+        state: enabled
+        policy: allow
+        direction: outgoing
+
+    - name: allow rpc
+      community.general.ufw:
+        rule: allow
+        port: '3030'
+        proto: tcp
+
+    - name: allow neard
+      community.general.ufw:
+        rule: allow
+        port: '24567'
+        proto: tcp
+
+    - name: Get mailutils
+      apt: 
+        name : "{{ item }}"
+        state: present
+      with_items:
+        - mailutils
+        - debconf
+        - debconf-utils
+
+    - name: Configure mailutils
+      debconf:
+        name: postfix
+        question: postfix postfix/main_mailer_type
+        value: Internet Site
+        vtype: select
+
+    - name: Configure mailutilsv2
+      debconf:
+        name: postfix
+        question: postfix postfix/mailname
+        value: "{{ inventory_hostname }}"
+        vtype: string
+
+    - name: make debconf changes active
+      command: "dpkg-reconfigure postfix"
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+# I stopped here as Hetzner blocks port 25 for SMTP, so the next step would be to configure a smtp relay on port 587, for example gmail or AWS SES.
+# It will require manual work outside of hetzner, so I am skipping automation for this part for now.
+

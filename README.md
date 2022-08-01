@@ -17,9 +17,10 @@ https://near.org/stakewars/
 ## How-To:
 
 1. Create a Hetzner account, generate an API key through cloud panel.
-2. Create a 'terraform.tfvars' file with the API key:
+2. Create a 'terraform.tfvars' file with the API key and hostname (it will be used for PTR record):
 ```
 hcloud_token = "xxxxxxxxxxxxxxxxxxxxxxx"
+server_hostname = <your hostname>
 ```
 3. Run Terraform
 4. Log into the server(root), create ansible sudo user:
@@ -36,3 +37,7 @@ chsh <youruser> // /bin/bash
 ansible-playbook -i hosts setup_node.yml --ask-become-pass
 ```
 7. Proceed to initialize stake pool etc.
+8. Run another playbook:
+```
+ansible-playbook -i hosts start_node.yml --ask-become-pass
+```
