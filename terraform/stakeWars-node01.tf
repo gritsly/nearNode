@@ -21,7 +21,7 @@ resource "hcloud_ssh_key" "mysshkey" {
 }
 
 resource "hcloud_server" "stakeWars-node01" {
-  name        = var.server_hostname
+  name        = "stakeWars-node01"
   image       = "ubuntu-22.04"
   datacenter  = "fsn1-dc14"
   ssh_keys    = ["mysshkey"]
