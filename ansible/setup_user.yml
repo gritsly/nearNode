@@ -1,0 +1,25 @@
+---
+# Create non-root user
+
+- name: Create user 
+  hosts: servers
+  remote_user: root
+  vars_prompt:
+    - name: user_password
+      prompt: What is your user password?
+
+  tasks:
+    - name: Add the user with a bash shell, appending the sudo group
+      user:
+        name: "{{ ansible_user }}"
+        shell: /bin/bash
+        groups: sudo
+        password: '{{ user_password }}'
+        append: yes
+
+    - name: Add public keys from root to user
+      authorized_key:
+        user: "{{ ansible_user }}"
+        state: present
+        exclusive: yes
+        key: "{{ lookup('file', '/root/.ssh/id_rsa.pub') }}"
