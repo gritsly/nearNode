@@ -18,7 +18,7 @@
       git:
         repo: https://github.com/near/nearcore
         dest: ~/nearcore
-        version: f7080ea441662593ec2d7368f9f601b007bf9744
+        version: shardnet
         force: yes
 
     - name: compile nearcore binary
@@ -40,6 +40,14 @@
         dest: ~/.near/config.json
         backup: yes
         force: yes
+
+    - name: Add public addrs
+      lineinfile:
+        path: ~/.near/config.json
+        regexp: "public_addrs"
+        insertbefore: 'minimum_outbound_peers'
+        line: '"public_addrs":["ed25519:{{ nodepubkey }}@{{ nodepubaddr }}:24567"],'
+        state: present
 
     - name: Start neard service
       systemd:

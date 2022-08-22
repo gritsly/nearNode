@@ -6,6 +6,8 @@ pool_id=<yourpoolid>
 account_id=<youraccountid>
 from_mail=<sendernotificationaddress>
 to_mail=<recipientnotificationaddress>
+nodepubkey=<yournodepubkey>
+nodepubaddr=<yourserverip>
 ###########################
 [servers]
 <yourserveriporhostname>

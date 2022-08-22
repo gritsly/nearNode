@@ -28,6 +28,14 @@
         backup: yes
         force: yes
 
+    - name: Add public addrs
+      lineinfile:
+        path: ~/.near/config.json
+        regexp: "public_addrs"
+        insertbefore: 'minimum_outbound_peers'
+        line: '"public_addrs":["ed25519:{{ nodepubkey }}@{{ nodepubaddr }}:24567"],'
+        state: present
+
     - name: Start neard service
       systemd:
         name: neard

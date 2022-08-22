@@ -4,7 +4,7 @@ echo "Sending email"
 sh ~/scripts/checkscript.sh > ~/mailcontent.txt
 near validators current | egrep -i "validator id|{{ pool_id }}" >> ~/mailcontent.txt
 near validators next | egrep -i "status|{{ pool_id }}" >> ~/mailcontent.txt
-journalctl -qxen 20 -u neard >> ~/mailcontent.txt
+journalctl -qx -u neard -S "1 hour ago" | egrep -v "missing chunks for| INFO | DEBUG |Processed in progress for" >> ~/mailcontent.txt
 mail -s "Uptime Report - problems" -r {{ from_mail }}  {{ to_mail }} < ~/mailcontent.txt
 else
 echo "All good"

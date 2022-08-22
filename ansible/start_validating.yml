@@ -1,0 +1,45 @@
+---
+# Start validating
+
+- hosts: servers
+  tasks:
+    - name: Create scripts directory
+      file:
+        path: ~/scripts
+        state: directory
+
+    - name: Create logs directory
+      file:
+        path: ~/logs
+        state: directory
+
+    - name: Create checkscript
+      template:
+        src: templates/checkscript.j2
+        dest: ~/scripts/checkscript.sh
+
+    - name: Create pingscript
+      template:
+        src: templates/ping.j2
+        dest: ~/scripts/ping.sh
+
+    - name: Creates a ping crontab
+      cron:
+        name: ping staking pool
+        minute: "0"
+        hour: "*/2"
+        user: "{{ ansible_user }}"
+        job: sh /home/{{ ansible_user }}/scripts/ping.sh
+    
+    - name: Create mailscript
+      template:
+        src: templates/sendmail.j2
+        dest: ~/scripts/sendmail.sh
+
+    - name: Creates a mail crontab
+      cron:
+        name: check journal and send mail
+        minute: "0"
+        hour: "*"
+        user: "{{ ansible_user }}"
+        job: sh /home/{{ ansible_user }}/scripts/sendmail.sh
