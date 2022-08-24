@@ -3,23 +3,36 @@
 
 - name: Create user 
   hosts: servers
-  remote_user: root
   vars_prompt:
+    - name: user_name
+      prompt: What is your user name?
+      private: no
     - name: user_password
       prompt: What is your user password?
 
   tasks:
+    - name: read authorized_keys
+      shell: cat /root/.ssh/authorized_keys
+      register: rootkeys
+      vars:
+        ansible_user: root
+
     - name: Add the user with a bash shell, appending the sudo group
       user:
-        name: "{{ ansible_user }}"
+        name: "{{ user_name }}"
         shell: /bin/bash
         groups: sudo
-        password: '{{ user_password }}'
+        password: "{{ user_password  | password_hash('sha512') }}"
         append: yes
+      vars:
+        ansible_user: root
 
     - name: Add public keys from root to user
       authorized_key:
-        user: "{{ ansible_user }}"
+        user: "{{ user_name }}"
         state: present
         exclusive: yes
-        key: "{{ lookup('file', '/root/.ssh/id_rsa.pub') }}"
+        key: "{{ item }}"
+      vars:
+        ansible_user: root
+      loop: "{{ rootkeys.stdout_lines }}"

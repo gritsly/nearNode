@@ -5,7 +5,7 @@ curl -s http://127.0.0.1:3030/status | jq .version
 
 ####### Check Delegators and Stake Command:
 
-near view {{ pool_id }}.factory.shardnet.near get_accounts '{"from_index": 0, "limit": 10}' --accountId {{ account_id }}.shardnet.near
+near view {{ pool_id }}.factory.{{ network }}.near get_accounts '{"from_index": 0, "limit": 10}' --accountId {{ account_id }}.{{ network }}.near
 
 ####### Check Reason Validator Kicked Command:
 

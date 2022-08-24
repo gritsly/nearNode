@@ -181,7 +181,7 @@
       become: yes
     
     - name: add nearcli to bashrc
-      lineinfile: dest=~/.bashrc line='export NEAR_ENV=shardnet' insertafter='EOF' state=present
+      lineinfile: dest=~/.bashrc line='export NEAR_ENV={{ network }}' insertafter='EOF' state=present
 
     - name: Get developer tools
       apt: 
@@ -210,6 +210,7 @@
         - make
         - jq
         - ccze
+        - awscli
       become: yes
     
     - name: Upgrade pip
@@ -237,24 +238,24 @@
       git:
         repo: https://github.com/near/nearcore
         dest: ~/nearcore
-        version: shardnet
+        version: {{ network }}
         force: yes
 
     - name: compile nearcore binary
-      command: ~/.cargo/bin/cargo build -p neard --release --features shardnet
+      command: ~/.cargo/bin/cargo build -p neard --release --features {{ network }}
       args:
         chdir: ~/nearcore
         creates: ~/nearcore/target/release/neard 
 
     - name: initialize working directory
-      command: ./target/release/neard --home ~/.near init --chain-id shardnet --download-genesis
+      command: ./target/release/neard --home ~/.near init --chain-id {{ network }} --download-genesis
       args: 
         creates: ~/.near/node_key.json
         chdir: ~/nearcore/
 
     - name: update config.json
       get_url:
-        url: https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore-deploy/shardnet/config.json
+        url: https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore-deploy/{{ network }}/config.json
         dest: ~/.near/config.json
         force: yes
 

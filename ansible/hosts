@@ -8,6 +8,7 @@ from_mail=<sendernotificationaddress>
 to_mail=<recipientnotificationaddress>
 nodepubkey=<yournodepubkey>
 nodepubaddr=<yourserverip>
+network=<network>
 ###########################
 [servers]
 <yourserveriporhostname>
