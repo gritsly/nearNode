@@ -1,4 +1,6 @@
-if journalctl -qxen 100 -u neard | grep -i err;
+#!/bin/sh
+export NEAR_ENV={{ network }}
+if journalctl -qx -u neard -S "1 hour ago" | grep -i err;
 then
 echo "Sending email"
 sh ~/scripts/checkscript.sh > ~/mailcontent.txt

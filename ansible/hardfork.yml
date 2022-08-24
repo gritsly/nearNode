@@ -1,7 +1,7 @@
 ---
 # Do hard fork
 
-- hosts: servers
+- hosts: backup
   tasks:
     - name: Stop neard service
       systemd:

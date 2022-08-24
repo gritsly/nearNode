@@ -9,6 +9,8 @@
       private: no
     - name: user_password
       prompt: What is your user password?
+  vars:
+    ansible_user: root
 
   tasks:
     - name: read authorized_keys

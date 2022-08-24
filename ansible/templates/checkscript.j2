@@ -1,5 +1,6 @@
 #!/bin/sh
 # check status of pool script
+export NEAR_ENV={{ network }}
 
 curl -s http://127.0.0.1:3030/status | jq .version
 

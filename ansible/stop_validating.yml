@@ -1,7 +1,7 @@
 ---
 # Start validating
 
-- hosts: servers
+- hosts: backup
   tasks:
     - name: Disable ping crontab
       cron:

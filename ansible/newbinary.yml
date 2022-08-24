@@ -1,7 +1,7 @@
 ---
 # Do new binary compilation
 
-- hosts: servers
+- hosts: backup
   tasks:
     - name: Stop neard service
       systemd:

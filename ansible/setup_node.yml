@@ -2,7 +2,7 @@
 # Create swap using swapfile
 
 - name: Create swap
-  hosts: servers
+  hosts: nodes
   become: yes
   tasks:
     - name: Check whether swap is already enabled or not
@@ -42,7 +42,7 @@
 
 # Update server & restart if needed
 
-- hosts: servers
+- hosts: backup
   become: yes
   tasks:
     - name: Set hostname
@@ -70,7 +70,7 @@
       when: reboot_required_file.stat.exists
 
 # Setup ufw & mailutils
-- hosts: servers
+- hosts: nodes
   become: yes
   tasks:
     - community.general.ufw:
@@ -135,7 +135,7 @@
 
 # Install near
 
-- hosts: servers
+- hosts: backup
   tasks:
     - name: Fetch nodejs
       uri: 
@@ -270,4 +270,10 @@
         name: neard
         state: started
         enabled: yes
+      become: yes
+    
+    - name: Get prometheus node exporter
+      apt: 
+        name : prometheus-node-exporter
+        state: present
       become: yes

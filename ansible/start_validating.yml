@@ -1,7 +1,7 @@
 ---
 # Start validating
 
-- hosts: servers
+- hosts: active
   tasks:
     - name: Create scripts directory
       file:

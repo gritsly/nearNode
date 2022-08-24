@@ -15,6 +15,14 @@ provider "hcloud" {
   token = var.hcloud_token
 }
 
+# data "hcloud_datacenters" "ds" {
+# }
+
+# output "hcloud_datacenters" {
+#   description = "Datacenters"
+#   value       = data.hcloud_datacenters.ds
+# }
+
 resource "hcloud_ssh_key" "mysshkey" {
   name       = "mysshkey"
   public_key = file("~/.ssh/id_rsa.pub")
@@ -23,7 +31,7 @@ resource "hcloud_ssh_key" "mysshkey" {
 resource "hcloud_server" "stakeWars-node01" {
   name        = "stakeWars-node01"
   image       = "ubuntu-22.04"
-  datacenter  = "fsn1"
+  datacenter  = "fsn1-dc14"
   ssh_keys    = ["mysshkey"]
   server_type = "cpx41"
   keep_disk   = true
@@ -37,7 +45,7 @@ resource "hcloud_server" "stakeWars-node01" {
 resource "hcloud_server" "stakeWars-monit" {
   name        = "stakeWars-monit"
   image       = "ubuntu-22.04"
-  datacenter  = "hel1"
+  datacenter  = "nbg1-dc3"
   ssh_keys    = ["mysshkey"]
   server_type = "cpx11"
   keep_disk   = true
