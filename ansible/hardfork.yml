@@ -1,7 +1,7 @@
 ---
 # Do hard fork
 
-- hosts: servers
+- hosts: backup
   tasks:
     - name: Stop neard service
       systemd:
@@ -18,17 +18,17 @@
       git:
         repo: https://github.com/near/nearcore
         dest: ~/nearcore
-        version: shardnet
+        version: {{ network }}
         force: yes
 
     - name: compile nearcore binary
-      command: ~/.cargo/bin/cargo build -p neard --release --features shardnet
+      command: ~/.cargo/bin/cargo build -p neard --release --features {{ network }}
       args:
         chdir: ~/nearcore
 
     - name: get genesis.json
       get_url:
-        url: https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore-deploy/shardnet/genesis.json.xz
+        url: https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore-deploy/{{ network }}/genesis.json.xz
         dest: ~/.near/
 
     - name: extract genesis.json
@@ -36,10 +36,18 @@
 
     - name: get config.json
       get_url:
-        url: https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore-deploy/shardnet/config.json
+        url: https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore-deploy/{{ network }}/config.json
         dest: ~/.near/config.json
         backup: yes
         force: yes
+
+    - name: Add public addrs
+      lineinfile:
+        path: ~/.near/config.json
+        regexp: "public_addrs"
+        insertbefore: 'minimum_outbound_peers'
+        line: '"public_addrs":["ed25519:{{ nodepubkey }}@{{ nodepubaddr }}:24567"],'
+        state: present
 
     - name: Start neard service
       systemd:

@@ -1,0 +1,200 @@
+---
+# Create swap using swapfile
+
+- name: Create swap
+  hosts: monit
+  become: yes
+  tasks:
+    - name: Check whether swap is already enabled or not
+      shell: cat /etc/sysctl.conf
+      register: swap_enabled
+
+    - block:
+      - name: create swap file
+        command: dd if=/dev/zero of=/swapfile bs=1G count=4
+
+      - name: change permission type
+        file: path=/swapfile mode=600 state=file
+
+      - name: setup swap
+        command: mkswap /swapfile
+    
+      - name: create swap
+        command: swapon /swapfile
+
+      - name: Add to fstab
+        action: lineinfile dest=/etc/fstab regexp="swapfile" line="/swapfile none swap sw 0 0" state=present
+
+      - name: start swap
+        command: swapon -a
+
+      - name: set swapiness
+        sysctl:
+          name: vm.swappiness
+          value: "10"
+
+      - name: set swapiness
+        sysctl:
+          name: vm.vfs_cache_pressure
+          value: "50"
+
+      when: swap_enabled.stdout.find('swappiness') == -1
+
+# Update server & restart if needed
+
+- hosts: monit
+  become: yes
+  tasks:
+    - name: Set hostname
+      hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Update apt repo and cache on all Debian/Ubuntu boxes
+      apt: update_cache=yes force_apt_get=yes cache_valid_time=3600
+
+    - name: Upgrade all packages on servers
+      apt: upgrade=dist force_apt_get=yes
+
+    - name: Check if a reboot is needed on all servers
+      register: reboot_required_file
+      stat: path=/var/run/reboot-required get_md5=no
+
+    - name: Reboot the box if kernel updated
+      reboot:
+        msg: "Reboot initiated by Ansible for kernel updates"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: uptime
+      when: reboot_required_file.stat.exists
+
+# Setup ufw & mailutils
+- hosts: monit
+  become: yes
+  tasks:
+    - community.general.ufw:
+        rule: allow
+        name: OpenSSH
+
+    - name: ufw incoming policy
+      community.general.ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
+
+    - name: ufw outgoing policy
+      community.general.ufw:
+        state: enabled
+        policy: allow
+        direction: outgoing
+
+    - name: ufw allow grafana
+      community.general.ufw:
+        rule: allow
+        port: '3000'
+        proto: tcp
+
+    - name: Get mailutils
+      apt: 
+        name : "{{ item }}"
+        state: present
+      with_items:
+        - mailutils
+        - debconf
+        - debconf-utils
+
+    - name: Configure mailutils
+      debconf:
+        name: postfix
+        question: postfix postfix/main_mailer_type
+        value: Internet Site
+        vtype: select
+
+    - name: Configure mailutilsv2
+      debconf:
+        name: postfix
+        question: postfix postfix/mailname
+        value: "{{ inventory_hostname }}"
+        vtype: string
+
+    - name: make debconf changes active
+      command: "dpkg-reconfigure postfix"
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+# I stopped here as Hetzner blocks port 25 for SMTP, so the next step would be to configure a smtp relay on port 587, for example gmail or AWS SES.
+# It will require manual work outside of hetzner, so I am skipping automation for this part for now.
+# To configure amazon SES with postfix use: https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html https://docs.aws.amazon.com/ses/latest/dg/postfix.html
+
+    - name: Add an Apt signing key, grafana 
+      ansible.builtin.apt_key:
+        url: https://packages.grafana.com/gpg.key
+        state: present
+
+    - name: Add grafana repo
+      ansible.builtin.apt_repository:
+        repo: deb https://packages.grafana.com/oss/deb stable main
+        state: present
+
+    - name: Get prometheus packages
+      apt: 
+        name : "{{ item }}"
+        state: present
+      with_items:
+        - prometheus
+        - prometheus-pushgateway
+        - prometheus-alertmanager
+        - prometheus-node-exporter
+        - grafana
+
+    - name: Insert prometheus config
+      template:
+        src: templates/prometheus.j2
+        dest: /etc/prometheus/prometheus.yml
+
+    - name: Insert rules config
+      template:
+        src: templates/rules.j2
+        dest: /etc/prometheus/rules.yml
+
+    - name: Install/update Grafana plugins
+      community.grafana.grafana_plugin:
+        name: "{{ item }}"
+        version: latest
+        state: present
+      with_items:
+        - simpod-json-datasource
+        - ryantxu-ajax-panel
+
+    - name: Insert grafana.ini block
+      blockinfile:
+        path: /etc/grafana/grafana.ini
+        marker: "# {mark} ANSIBLE MANAGED BLOCK #"
+        insertafter: "smtp"
+        block: |
+          enabled = true
+          host = localhost:25
+          skip_verify = true
+          from_address = {{ inventory_hostname }}@{{ from_domain }}
+          from_name = {{ inventory_hostname }} Grafana
+
+    - name: Insert prometheus alertmanager config
+      lineinfile:
+        path: /etc/default/prometheus-alertmanager
+        regexp: "^ARGS:"
+        line: 'ARGS="--cluster.listen-address="'
+        state: present
+
+    - name: Start prometheus services
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+        daemon_reload: yes
+        enabled: yes
+      become: yes
+      with_items:
+        - grafana-server
+        - prometheus-node-exporter
+        - prometheus-alertmanager
+        - prometheus

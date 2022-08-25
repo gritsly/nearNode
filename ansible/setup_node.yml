@@ -1,7 +1,48 @@
 ---
+# Create swap using swapfile
+
+- name: Create swap
+  hosts: nodes
+  become: yes
+  tasks:
+    - name: Check whether swap is already enabled or not
+      shell: cat /etc/sysctl.conf
+      register: swap_enabled
+
+    - block:
+      - name: create swap file
+        command: dd if=/dev/zero of=/swapfile bs=1G count=16
+
+      - name: change permission type
+        file: path=/swapfile mode=600 state=file
+
+      - name: setup swap
+        command: mkswap /swapfile
+    
+      - name: create swap
+        command: swapon /swapfile
+
+      - name: Add to fstab
+        action: lineinfile dest=/etc/fstab regexp="swapfile" line="/swapfile none swap sw 0 0" state=present
+
+      - name: start swap
+        command: swapon -a
+
+      - name: set swapiness
+        sysctl:
+          name: vm.swappiness
+          value: "10"
+
+      - name: set swapiness
+        sysctl:
+          name: vm.vfs_cache_pressure
+          value: "50"
+
+      when: swap_enabled.stdout.find('swappiness') == -1
+
 # Update server & restart if needed
 
-- hosts: servers
+- hosts: backup
   become: yes
   tasks:
     - name: Set hostname
@@ -28,9 +69,72 @@
         test_command: uptime
       when: reboot_required_file.stat.exists
 
+# Setup ufw & mailutils
+- hosts: nodes
+  become: yes
+  tasks:
+    - community.general.ufw:
+        rule: allow
+        name: OpenSSH
+
+    - name: ufw incoming policy
+      community.general.ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
+
+    - name: ufw outgoing policy
+      community.general.ufw:
+        state: enabled
+        policy: allow
+        direction: outgoing
+
+    - name: allow rpc, neard, prometheus
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      with_items:
+        - 3030
+        - 24567
+        - 9333
+        - 9100
+
+    - name: Get mailutils
+      apt: 
+        name : "{{ item }}"
+        state: present
+      with_items:
+        - mailutils
+        - debconf
+        - debconf-utils
+
+    - name: Configure mailutils
+      debconf:
+        name: postfix
+        question: postfix postfix/main_mailer_type
+        value: Internet Site
+        vtype: select
+
+    - name: Configure mailutilsv2
+      debconf:
+        name: postfix
+        question: postfix postfix/mailname
+        value: "{{ inventory_hostname }}"
+        vtype: string
+
+    - name: make debconf changes active
+      command: "dpkg-reconfigure postfix"
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+# I stopped here as Hetzner blocks port 25 for SMTP, so the next step would be to configure a smtp relay on port 587, for example gmail or AWS SES.
+# It will require manual work outside of hetzner, so I am skipping automation for this part for now.
+# To configure amazon SES with postfix use: https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html https://docs.aws.amazon.com/ses/latest/dg/postfix.html
+
 # Install near
 
-- hosts: servers
+- hosts: backup
   tasks:
     - name: Fetch nodejs
       uri: 
@@ -62,21 +166,22 @@
         state: latest
       become: yes
     
-    - name: Check node version
-      command: node -v
-      register: version_output
-    - debug:
-        var: version_output.stdout_lines
+    # - name: Check node version
+    #   command: node -v
+    #   register: version_output
+    # - debug:
+    #     var: version_output.stdout_lines
 
     - name: install nearcli
       community.general.npm:
         name: near-cli
         global: yes
+        state: latest
         path: /usr/local/bin/
       become: yes
     
     - name: add nearcli to bashrc
-      lineinfile: dest=~/.bashrc line='export NEAR_ENV=shardnet' insertafter='EOF' state=present
+      lineinfile: dest=~/.bashrc line='export NEAR_ENV={{ network }}' insertafter='EOF' state=present
 
     - name: Get developer tools
       apt: 
@@ -105,6 +210,8 @@
         - make
         - jq
         - ccze
+        - awscli
+        - golang-go
       become: yes
     
     - name: Upgrade pip
@@ -132,26 +239,35 @@
       git:
         repo: https://github.com/near/nearcore
         dest: ~/nearcore
-        version: shardnet
+        version: "{{ network }}"
         force: yes
 
     - name: compile nearcore binary
-      command: ~/.cargo/bin/cargo build -p neard --release --features shardnet
+      command: ~/.cargo/bin/cargo build -p neard --release --features {{ network }}
       args:
         chdir: ~/nearcore
         creates: ~/nearcore/target/release/neard 
 
     - name: initialize working directory
-      command: ./target/release/neard --home ~/.near init --chain-id shardnet --download-genesis
+      command: ./target/release/neard --home ~/.near init --chain-id {{ network }} --download-genesis
       args: 
         creates: ~/.near/node_key.json
         chdir: ~/nearcore/
 
-    - name: update config.json
+    - name: get config.json
       get_url:
-        url: https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore-deploy/shardnet/config.json
+        url: https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore-deploy/{{ network }}/config.json
         dest: ~/.near/config.json
+        backup: yes
         force: yes
+
+    - name: Add public addrs
+      lineinfile:
+        path: ~/.near/config.json
+        regexp: "public_addrs"
+        insertbefore: 'minimum_outbound_peers'
+        line: '"public_addrs":["ed25519:{{ nodepubkey }}@{{ nodepubaddr }}:24567"],'
+        state: present
 
     - name: Create neard systemd service file
       template:
@@ -165,3 +281,48 @@
         state: started
         enabled: yes
       become: yes
+    
+    - name: Get prometheus node exporter
+      apt: 
+        name : prometheus-node-exporter
+        state: present
+      become: yes
+
+    - name: Clone prometheus near exporter repo
+      git:
+        repo: https://github.com/masknetgoal634/near-prometheus-exporter.git
+        dest: ~/near-prometheus-exporter
+
+    - name: compile near exporter
+      command: go build -a -installsuffix cgo -ldflags="-w -s" -o near-exporter .
+      args:
+        chdir: ~/near-prometheus-exporter
+        creates: ~/near-prometheus-exporter/near-exporter
+
+    - name: copy near exporter binary
+      copy:
+        src: /home/{{ ansible_user }}/near-prometheus-exporter/near-exporter
+        dest: /opt/near-exporter
+        remote_src: yes
+        force: no
+        owner: prometheus
+        group: prometheus
+        mode: '0500'
+      become: yes
+
+    - name: Create near exporter systemd service file
+      template:
+        src: templates/near-exporter.service.j2
+        dest: /etc/systemd/system/near-exporter.service
+      become: yes
+
+    - name: Start exporter services
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+        daemon_reload: yes
+        enabled: yes
+      become: yes
+      with_items:
+        - near-exporter
+        - prometheus-node-exporter

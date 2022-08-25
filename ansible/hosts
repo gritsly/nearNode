@@ -4,8 +4,20 @@ ansible_become_method=sudo
 ansible_python_interpreter='/usr/bin/env python3'
 pool_id=<yourpoolid>
 account_id=<youraccountid>
-from_mail=<sendernotificationaddress>
+from_domain=<sendernotificationaddress>
 to_mail=<recipientnotificationaddress>
+network=<network>
 ###########################
 [servers]
-<yourserveriporhostname>
+<yourserveriporhostname01>
+<yourserveriporhostname02>
+<yourserveriporhostname03-monit>    
+[nodes]
+<yourserveriporhostname01> nodepubaddr=<yourserverip> nodepubkey=<yournodepubkey>
+<yourserveriporhostname02> nodepubaddr=<yourserverip> nodepubkey=<yournodepubkey>
+[monit]
+<yourserveriporhostname03-monit>
+[active]
+<yourserveriporhostname01>
+[backup]
+<yourserveriporhostname02>
