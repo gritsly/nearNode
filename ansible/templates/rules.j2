@@ -10,7 +10,7 @@ groups:
           summary: "Endpoint {{ hostvars[groups['nodes'][0]]['inventory_hostname'] }} down"
           description: "Endpoint {{ hostvars[groups['nodes'][0]]['inventory_hostname'] }} down"
       - alert: NearVersionBuildNotMatched
-        expr: near_version_build{instance="yournode.io", job="near"} != near_dev_version_build{instance="yournode.io", job="near"}
+        expr: near_version_build{instance="{{ hostvars[groups['nodes'][0]]['inventory_hostname'] }}", job="near"} != near_dev_version_build{instance="{{ hostvars[groups['nodes'][0]]['inventory_hostname'] }}", job="near"}
         for: 5m
         labels:
           severity: critical

@@ -1,0 +1,13 @@
+[Unit]
+Description=NEAR Prometheus Exporter Service
+
+[Service]
+User=prometheus
+Restart=always
+ExecStart=/opt/near-exporter -accountId {{ pool_id }}.factory.{{ network }}.near
+ExecReload=/bin/kill -HUP $MAINPID
+TimeoutStopSec=20s
+SendSIGKILL=no
+
+[Install]
+WantedBy=multi-user.target

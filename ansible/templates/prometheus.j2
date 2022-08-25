@@ -36,10 +36,14 @@ scrape_configs:
     # scheme defaults to 'http'.
 
     static_configs:
-      - targets: ['{{ hostvars[groups['nodes'][0]]['inventory_hostname'] }}:9093','{{ hostvars[groups['nodes'][0]]['inventory_hostname'] }}:3030']
+      - targets: ['localhost:9090']
 
   - job_name: node
     # If prometheus-node-exporter is installed, grab stats about the local
     # machine by default.
     static_configs:
       - targets: ['localhost:9100']
+
+  - job_name: near-node01
+    static_configs:
+      - targets: ['{{ hostvars[groups['nodes'][0]]['inventory_hostname'] }}:9333','{{ hostvars[groups['nodes'][0]]['inventory_hostname'] }}:3030','{{ hostvars[groups['nodes'][0]]['inventory_hostname'] }}:9100']

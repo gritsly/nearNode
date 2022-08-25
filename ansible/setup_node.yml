@@ -89,17 +89,16 @@
         policy: allow
         direction: outgoing
 
-    - name: allow rpc
+    - name: allow rpc, neard, prometheus
       community.general.ufw:
         rule: allow
-        port: '3030'
+        port: "{{ item }}"
         proto: tcp
-
-    - name: allow neard
-      community.general.ufw:
-        rule: allow
-        port: '24567'
-        proto: tcp
+      with_items:
+        - 3030
+        - 24567
+        - 9333
+        - 9100
 
     - name: Get mailutils
       apt: 
@@ -167,16 +166,17 @@
         state: latest
       become: yes
     
-    - name: Check node version
-      command: node -v
-      register: version_output
-    - debug:
-        var: version_output.stdout_lines
+    # - name: Check node version
+    #   command: node -v
+    #   register: version_output
+    # - debug:
+    #     var: version_output.stdout_lines
 
     - name: install nearcli
       community.general.npm:
         name: near-cli
         global: yes
+        state: latest
         path: /usr/local/bin/
       become: yes
     
@@ -211,6 +211,7 @@
         - jq
         - ccze
         - awscli
+        - golang-go
       become: yes
     
     - name: Upgrade pip
@@ -238,7 +239,7 @@
       git:
         repo: https://github.com/near/nearcore
         dest: ~/nearcore
-        version: {{ network }}
+        version: "{{ network }}"
         force: yes
 
     - name: compile nearcore binary
@@ -253,11 +254,20 @@
         creates: ~/.near/node_key.json
         chdir: ~/nearcore/
 
-    - name: update config.json
+    - name: get config.json
       get_url:
         url: https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore-deploy/{{ network }}/config.json
         dest: ~/.near/config.json
+        backup: yes
         force: yes
+
+    - name: Add public addrs
+      lineinfile:
+        path: ~/.near/config.json
+        regexp: "public_addrs"
+        insertbefore: 'minimum_outbound_peers'
+        line: '"public_addrs":["ed25519:{{ nodepubkey }}@{{ nodepubaddr }}:24567"],'
+        state: present
 
     - name: Create neard systemd service file
       template:
@@ -277,3 +287,42 @@
         name : prometheus-node-exporter
         state: present
       become: yes
+
+    - name: Clone prometheus near exporter repo
+      git:
+        repo: https://github.com/masknetgoal634/near-prometheus-exporter.git
+        dest: ~/near-prometheus-exporter
+
+    - name: compile near exporter
+      command: go build -a -installsuffix cgo -ldflags="-w -s" -o near-exporter .
+      args:
+        chdir: ~/near-prometheus-exporter
+        creates: ~/near-prometheus-exporter/near-exporter
+
+    - name: copy near exporter binary
+      copy:
+        src: /home/{{ ansible_user }}/near-prometheus-exporter/near-exporter
+        dest: /opt/near-exporter
+        remote_src: yes
+        force: no
+        owner: prometheus
+        group: prometheus
+        mode: '0500'
+      become: yes
+
+    - name: Create near exporter systemd service file
+      template:
+        src: templates/near-exporter.service.j2
+        dest: /etc/systemd/system/near-exporter.service
+      become: yes
+
+    - name: Start exporter services
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+        daemon_reload: yes
+        enabled: yes
+      become: yes
+      with_items:
+        - near-exporter
+        - prometheus-node-exporter

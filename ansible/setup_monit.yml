@@ -89,6 +89,12 @@
         policy: allow
         direction: outgoing
 
+    - name: ufw allow grafana
+      community.general.ufw:
+        rule: allow
+        port: '3000'
+        proto: tcp
+
     - name: Get mailutils
       apt: 
         name : "{{ item }}"
@@ -121,38 +127,6 @@
 # It will require manual work outside of hetzner, so I am skipping automation for this part for now.
 # To configure amazon SES with postfix use: https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html https://docs.aws.amazon.com/ses/latest/dg/postfix.html
 
-    - name: Get prometheus
-      apt: 
-        name : "{{ item }}"
-        state: present
-      with_items:
-        - prometheus
-        - prometheus-pushgateway
-        - prometheus-alertmanager
-
-    - name: Insert prometheus config
-      # lineinfile:
-      #   path: /etc/prometheus/prometheus.yml
-      #   insertafter: "scrape_configs"
-      #   regexp: "- targets:"
-      #   line: "      - targets: ['{{ hostvars[groups['nodes'][0]]['inventory_hostname'] }}:9093','{{ hostvars[groups['nodes'][0]]['inventory_hostname'] }}:3030']"
-      #   state: present
-      #   firstmatch: yes
-      template:
-        src: templates/prometheus.j2
-        dest: /etc/prometheus/prometheus.yml
-
-    - name: Insert rules config
-      template:
-        src: templates/rules.j2
-        dest: /etc/prometheus/rules.yml
-
-    - name: Restart prometheus service
-      systemd:
-        name: prometheus
-        state: restarted
-      become: yes
-
     - name: Add an Apt signing key, grafana 
       ansible.builtin.apt_key:
         url: https://packages.grafana.com/gpg.key
@@ -163,7 +137,64 @@
         repo: deb https://packages.grafana.com/oss/deb stable main
         state: present
 
-    - name: Get Grafana
+    - name: Get prometheus packages
       apt: 
-        name : grafana
+        name : "{{ item }}"
         state: present
+      with_items:
+        - prometheus
+        - prometheus-pushgateway
+        - prometheus-alertmanager
+        - prometheus-node-exporter
+        - grafana
+
+    - name: Insert prometheus config
+      template:
+        src: templates/prometheus.j2
+        dest: /etc/prometheus/prometheus.yml
+
+    - name: Insert rules config
+      template:
+        src: templates/rules.j2
+        dest: /etc/prometheus/rules.yml
+
+    - name: Install/update Grafana plugins
+      community.grafana.grafana_plugin:
+        name: "{{ item }}"
+        version: latest
+        state: present
+      with_items:
+        - simpod-json-datasource
+        - ryantxu-ajax-panel
+
+    - name: Insert grafana.ini block
+      blockinfile:
+        path: /etc/grafana/grafana.ini
+        marker: "# {mark} ANSIBLE MANAGED BLOCK #"
+        insertafter: "smtp"
+        block: |
+          enabled = true
+          host = localhost:25
+          skip_verify = true
+          from_address = {{ inventory_hostname }}@{{ from_domain }}
+          from_name = {{ inventory_hostname }} Grafana
+
+    - name: Insert prometheus alertmanager config
+      lineinfile:
+        path: /etc/default/prometheus-alertmanager
+        regexp: "^ARGS:"
+        line: 'ARGS="--cluster.listen-address="'
+        state: present
+
+    - name: Start prometheus services
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+        daemon_reload: yes
+        enabled: yes
+      become: yes
+      with_items:
+        - grafana-server
+        - prometheus-node-exporter
+        - prometheus-alertmanager
+        - prometheus
