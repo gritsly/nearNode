@@ -1,4 +1,33 @@
 ---
+# Update server & restart if needed
+
+- hosts: backup
+  become: yes
+  tasks:
+    - name: Set hostname
+      hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Update apt repo and cache on all Debian/Ubuntu boxes
+      apt: update_cache=yes force_apt_get=yes cache_valid_time=3600
+
+    - name: Upgrade all packages on servers
+      apt: upgrade=dist force_apt_get=yes
+
+    - name: Check if a reboot is needed on all servers
+      register: reboot_required_file
+      stat: path=/var/run/reboot-required get_md5=no
+
+    - name: Reboot the box if kernel updated
+      reboot:
+        msg: "Reboot initiated by Ansible for kernel updates"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: uptime
+      when: reboot_required_file.stat.exists
+
 # Do new binary compilation
 
 - hosts: backup
@@ -8,12 +37,23 @@
         name: neard
         state: stopped
       become: yes
-    
+
+    - name: Get current build number
+      shell: ~/nearcore/target/release/neard --version | awk -F" |)" '{print $6}'
+      register: neard_build
+
+    - name: Backup neard binary
+      copy:
+        src: ~/nearcore/target/release/neard
+        dest: ~/nearcore/target/release/neard.{{ neard_build.stdout }}
+        remote_src: yes
+        force: no
+
     - name: Clone a repo with separate git directory
       git:
         repo: https://github.com/near/nearcore
         dest: ~/nearcore
-        version: {{ network }}
+        version: "{{ network }}"
         force: yes
 
     - name: compile nearcore binary
@@ -28,12 +68,27 @@
         backup: yes
         force: yes
 
+    - name: get node public key
+      shell: cat ~/.near/node_key.json | grep public_key | grep -o "ed25519.*" | sed 's/..$//'
+      register: nodepubkey
+
+    - name: get node public ip
+      shell: hostname -I | awk '{print $1}'
+      register: nodepubaddr
+
+    - name: Add blacklist addresses
+      lineinfile:
+        path: ~/.near/config.json
+        regexp: "blacklist"
+        line: '    "blacklist": [{{ blacklist }}],'
+        state: present
+
     - name: Add public addrs
       lineinfile:
         path: ~/.near/config.json
         regexp: "public_addrs"
         insertbefore: 'minimum_outbound_peers'
-        line: '"public_addrs":["ed25519:{{ nodepubkey }}@{{ nodepubaddr }}:24567"],'
+        line: '    "public_addrs":["{{ nodepubkey.stdout }}@{{ nodepubaddr.stdout }}:24567"],'
         state: present
 
     - name: Start neard service

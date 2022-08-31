@@ -15,6 +15,8 @@ provider "hcloud" {
   token = var.hcloud_token
 }
 
+### Uncomment to see hetzner datacenters data in terraform plan
+
 # data "hcloud_datacenters" "ds" {
 # }
 
@@ -33,7 +35,21 @@ resource "hcloud_server" "stakeWars-node01" {
   image       = "ubuntu-22.04"
   datacenter  = "fsn1-dc14"
   ssh_keys    = ["mysshkey"]
-  server_type = "cpx41"
+  server_type = "cpx31"
+  keep_disk   = true
+  public_net {
+    ipv4_enabled = true
+    ipv6_enabled = true
+  }
+  depends_on = [hcloud_ssh_key.mysshkey]
+}
+
+resource "hcloud_server" "stakeWars-node02" {
+  name        = "stakeWars-node02"
+  image       = "ubuntu-22.04"
+  datacenter  = "hel1-dc2"
+  ssh_keys    = ["mysshkey"]
+  server_type = "cpx31"
   keep_disk   = true
   public_net {
     ipv4_enabled = true

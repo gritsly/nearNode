@@ -4,17 +4,19 @@ ansible_become_method=sudo
 ansible_python_interpreter='/usr/bin/env python3'
 pool_id=<yourpoolid>
 account_id=<youraccountid>
-from_domain=<sendernotificationaddress>
+from_domain=<sendernotificationdomain>
 to_mail=<recipientnotificationaddress>
 network=<network>
+blacklist=<blacklisted_ips>     # use format:  '"1.1.1.1","2.2.2.2","3.3.3.3"'
+amazon_ses_relayhost=<email-smtp.eu-west-1.amazonaws.com>
 ###########################
 [servers]
 <yourserveriporhostname01>
 <yourserveriporhostname02>
 <yourserveriporhostname03-monit>    
 [nodes]
-<yourserveriporhostname01> nodepubaddr=<yourserverip> nodepubkey=<yournodepubkey>
-<yourserveriporhostname02> nodepubaddr=<yourserverip> nodepubkey=<yournodepubkey>
+<yourserveriporhostname01>
+<yourserveriporhostname02>
 [monit]
 <yourserveriporhostname03-monit>
 [active]

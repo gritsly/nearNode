@@ -1,0 +1,56 @@
+---
+# Stop validating
+
+- hosts: backup
+  tasks:
+    - name: Stop neard service
+      systemd:
+        name: neard
+        state: stopped
+      become: yes
+    
+    - name: Disable ping crontab
+      cron:
+        name: ping staking pool
+        minute: "0"
+        hour: "*/2"
+        user: "{{ ansible_user }}"
+        job: sh /home/{{ ansible_user }}/scripts/ping.sh
+        disabled: yes
+    
+    - name: Disable mail crontab
+      cron:
+        name: check journal and send mail
+        minute: "0"
+        hour: "*"
+        user: "{{ ansible_user }}"
+        job: sh /home/{{ ansible_user }}/scripts/sendmail.sh
+        disabled: yes
+
+    - name: delete validator_key.json
+      file:
+        path: ~/.near/validator_key.json 
+        state: absent
+
+    - name: switch to backup node key
+      copy:
+        src: ~/.near-credentials/backup_keys/node_key.json
+        dest: ~/.near/node_key.json
+        remote_src: yes
+        force: yes
+
+    - name: get node public key
+      shell: cat ~/.near/node_key.json | grep public_key | grep -o "ed25519.*" | sed 's/..$//'
+      register: nodepubkey
+
+    - name: get node public ip
+      shell: hostname -I | awk '{print $1}'
+      register: nodepubaddr
+
+    - name: Add public addrs to config.json
+      lineinfile:
+        path: ~/.near/config.json
+        regexp: "public_addrs"
+        insertbefore: 'minimum_outbound_peers'
+        line: '    "public_addrs":["{{ nodepubkey.stdout }}@{{ nodepubaddr.stdout }}:24567"],'
+        state: present
