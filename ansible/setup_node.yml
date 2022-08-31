@@ -11,7 +11,7 @@
 
     - block:
       - name: create swap file
-        command: dd if=/dev/zero of=/swapfile bs=1G count=16
+        command: dd if=/dev/zero of=/swapfile bs=1G count=8
 
       - name: change permission type
         file: path=/swapfile mode=600 state=file
@@ -131,6 +131,7 @@
 # I stopped here as Hetzner blocks port 25 for SMTP, so the next step would be to configure a smtp relay on port 587, for example gmail or AWS SES.
 # It will require manual work outside of hetzner, so I am skipping automation for this part for now.
 # To configure amazon SES with postfix use: https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html https://docs.aws.amazon.com/ses/latest/dg/postfix.html
+# edit: I also provide a playbook - configure_postfix.yml, which does the server configuration part.
 
 # Install near
 
@@ -261,12 +262,27 @@
         backup: yes
         force: yes
 
+    - name: get node public key
+      shell: cat ~/.near/node_key.json | grep public_key | grep -o "ed25519.*" | sed "s/..$//"
+      register: nodepubkey
+
+    - name: get node public ip
+      shell: hostname -I | awk '{print $1}'
+      register: nodepubaddr
+
     - name: Add public addrs
       lineinfile:
         path: ~/.near/config.json
         regexp: "public_addrs"
         insertbefore: 'minimum_outbound_peers'
-        line: '"public_addrs":["ed25519:{{ nodepubkey }}@{{ nodepubaddr }}:24567"],'
+        line: '    "public_addrs":["{{ nodepubkey.stdout }}@{{ nodepubaddr.stdout }}:24567"],'
+        state: present
+
+    - name: Add blacklist addresses
+      lineinfile:
+        path: ~/.near/config.json
+        regexp: "blacklist"
+        line: '    "blacklist": [{{ blacklist }}],'
         state: present
 
     - name: Create neard systemd service file
@@ -326,3 +342,28 @@
       with_items:
         - near-exporter
         - prometheus-node-exporter
+        
+    - name: Create scripts directory
+      file:
+        path: ~/scripts
+        state: directory
+
+    - name: Create logs directory
+      file:
+        path: ~/logs
+        state: directory
+
+    - name: Create checkscript
+      template:
+        src: templates/checkscript.j2
+        dest: ~/scripts/checkscript.sh
+
+    - name: Create pingscript
+      template:
+        src: templates/ping.j2
+        dest: ~/scripts/ping.sh
+
+    - name: Create mailscript
+      template:
+        src: templates/sendmail.j2
+        dest: ~/scripts/sendmail.sh

@@ -1,0 +1,36 @@
+---
+# Configure postfix using amazon SES
+
+- name: Configure Postfix
+  hosts: servers
+  become: yes
+  tasks:
+    - name: Insert password file
+      copy:
+        src: mysaslpasswd
+        dest: /etc/postfix/sasl_passwd
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: configure postfix
+      command: '{{ item }}'
+      with_items: 
+        - sudo postconf -e "relayhost = [{{ amazon_ses_relayhost }}]:587" "smtp_sasl_auth_enable = yes" "smtp_sasl_security_options = noanonymous" "smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd" "smtp_use_tls = yes" "smtp_tls_security_level = encrypt" "smtp_tls_note_starttls_offer = yes"
+        - sudo postconf -e 'smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt'
+        - sudo postmap hash:/etc/postfix/sasl_passwd
+
+    - name: Change file ownership, group and permissions
+      file:
+        path: /etc/postfix/sasl_passwd.db
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Restart postfix service
+      systemd:
+        name: postfix
+        state: restarted
+        enabled: yes
+
+    

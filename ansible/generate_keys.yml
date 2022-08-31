@@ -1,0 +1,78 @@
+---
+# Start validating
+
+- hosts: nodes
+  tasks:
+    - name: Create key folders
+      file:
+        path: ~/.near-credentials/{{ item }}
+        state: directory
+      with_items:
+        - active_keys
+        - backup_keys
+
+- hosts: backup
+  tasks:
+    - name: Copy backup node_key
+      copy:
+        src: ~/.near/node_key.json
+        dest: ~/.near-credentials/backup_keys/node_key.json
+        remote_src: yes
+
+    - name: Fetch the node_key file from the backup node to master
+      run_once: yes
+      fetch: src=~/.near-credentials/backup_keys/node_key.json dest=buffer/backup_node_key.json flat=yes
+
+- hosts: active
+  tasks:
+    - name: Copy the file from master to active node
+      copy: src=buffer/backup_node_key.json dest=~/.near-credentials/backup_keys/node_key.json
+
+    - name: Copy active node_key
+      copy:
+        src: ~/.near/node_key.json
+        dest: ~/.near-credentials/active_keys/node_key.json
+        remote_src: yes
+
+    - name: generate node keys
+      command: near generate-key {{ pool_id }}
+      args: 
+        creates: ~/.near-credentials/{{ network }}/{{ account_id }}.{{ network }}.near.json
+
+    - name: create validator_key.json
+      copy:
+        src: ~/.near-credentials/{{ network }}/{{ account_id }}.{{ network }}.near.json
+        dest: ~/.near-credentials/active_keys/validator_key.json
+        remote_src: yes
+        force: no
+      register: validator_key_created
+
+    - name: replace private_key string
+      replace:
+        path: ~/.near-credentials/active_keys/validator_key.json
+        regexp: 'private_key'
+        replace: 'secret_key'
+      when: validator_key_created.changed
+
+    - name: replace account_id string
+      replace:
+        path: ~/.near-credentials/active_keys/validator_key.json
+        regexp: '{{ account_id }}.{{ network }}.near'
+        replace: '{{ pool_id }}.factory.{{ network }}.near'
+      when: validator_key_created.changed
+
+    - name: Fetch the node_key file from the active node to master
+      run_once: yes
+      fetch: src=~/.near-credentials/active_keys/node_key.json dest=buffer/active_node_key.json flat=yes
+
+    - name: Fetch the validator_key file from the active node to master
+      run_once: yes
+      fetch: src=~/.near-credentials/active_keys/validator_key.json dest=buffer/active_validator_key.json flat=yes
+
+- hosts: backup
+  tasks:
+    - name: Copy the node_key file from master to backup node
+      copy: src=buffer/active_node_key.json dest=~/.near-credentials/active_keys/node_key.json
+
+    - name: Copy the validator_key file from master to backup node
+      copy: src=buffer/active_validator_key.json dest=~/.near-credentials/active_keys/validator_key.json

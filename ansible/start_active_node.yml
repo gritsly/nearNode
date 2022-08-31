@@ -1,0 +1,54 @@
+---
+# Start validating
+
+- hosts: active
+  tasks:
+    - name: Creates a ping crontab
+      cron:
+        name: ping staking pool
+        minute: "0"
+        hour: "*/2"
+        user: "{{ ansible_user }}"
+        job: sh /home/{{ ansible_user }}/scripts/ping.sh
+        disabled: no
+    
+    - name: Creates a mail crontab
+      cron:
+        name: check journal and send mail
+        minute: "0"
+        hour: "*"
+        user: "{{ ansible_user }}"
+        job: sh /home/{{ ansible_user }}/scripts/sendmail.sh
+        disabled: no
+
+    - name: get keys
+      copy:
+        src: ~/.near-credentials/active_keys/{{ item }}.json
+        dest: ~/.near/{{ item }}.json
+        remote_src: yes
+        force: yes
+      with_items:
+        - validator_key
+        - node_key
+
+    - name: get node public key
+      shell: cat ~/.near/node_key.json | grep public_key | grep -o "ed25519.*" | sed 's/..$//'
+      register: nodepubkey
+
+    - name: get node public ip
+      shell: hostname -I | awk '{print $1}'
+      register: nodepubaddr
+
+    - name: Add public addrs to config.json
+      lineinfile:
+        path: ~/.near/config.json
+        regexp: "public_addrs"
+        insertbefore: 'minimum_outbound_peers'
+        line: '    "public_addrs":["{{ nodepubkey.stdout }}@{{ nodepubaddr.stdout }}:24567"],'
+        state: present
+
+    - name: Restart neard service
+      systemd:
+        name: neard
+        state: restarted
+      become: yes
