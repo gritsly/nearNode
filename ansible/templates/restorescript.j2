@@ -1,0 +1,33 @@
+#!/bin/bash
+
+DATE=$(date +%Y-%m-%d-%H-%M)
+DATADIR=/home/{{ ansible_user }}/.near
+BACKUPDIR=/home/{{ ansible_user }}/backups
+
+sudo systemctl stop neard.service
+
+wait
+
+echo "NEAR node was stopped" | ts
+
+if ( ls -A ${BACKUPDIR} ) then
+    echo "Restore started" | ts
+
+    LATEST=$(ls ${BACKUPDIR}/* -td | head -n 1)
+    
+    rm -rf ${DATADIR}/data
+
+    tar -xzvf ${LATEST} -C /home/{{ ansible_user }}/.near/
+
+    echo "Restore completed" | ts
+
+    sudo chown {{ ansible_user }}:{{ ansible_user }} -R ${DATADIR}/data
+
+else
+    echo $BACKUPDIR is empty. Get db backup file.
+    exit 0
+fi
+
+sudo systemctl start neard.service
+
+echo "NEAR node was started" | ts

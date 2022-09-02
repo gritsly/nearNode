@@ -9,6 +9,7 @@ to_mail=<recipientnotificationaddress>
 network=<network>
 blacklist=<blacklisted_ips>     # use format:  '"1.1.1.1","2.2.2.2","3.3.3.3"'
 amazon_ses_relayhost=<email-smtp.eu-west-1.amazonaws.com>
+backup_check_url=<url>
 ###########################
 [servers]
 <yourserveriporhostname01>
