@@ -69,72 +69,7 @@
         test_command: uptime
       when: reboot_required_file.stat.exists
 
-# Setup ufw & mailutils
-- hosts: nodes
-  become: yes
-  tasks:
-    - community.general.ufw:
-        rule: allow
-        name: OpenSSH
-
-    - name: ufw incoming policy
-      community.general.ufw:
-        state: enabled
-        policy: deny
-        direction: incoming
-
-    - name: ufw outgoing policy
-      community.general.ufw:
-        state: enabled
-        policy: allow
-        direction: outgoing
-
-    - name: allow rpc, neard, prometheus
-      community.general.ufw:
-        rule: allow
-        port: "{{ item }}"
-        proto: tcp
-      with_items:
-        - 3030
-        - 24567
-        - 9333
-        - 9100
-
-    - name: Get mailutils
-      apt: 
-        name : "{{ item }}"
-        state: present
-      with_items:
-        - mailutils
-        - debconf
-        - debconf-utils
-
-    - name: Configure mailutils
-      debconf:
-        name: postfix
-        question: postfix postfix/main_mailer_type
-        value: Internet Site
-        vtype: select
-
-    - name: Configure mailutilsv2
-      debconf:
-        name: postfix
-        question: postfix postfix/mailname
-        value: "{{ inventory_hostname }}"
-        vtype: string
-
-    - name: make debconf changes active
-      command: "dpkg-reconfigure postfix"
-      environment:
-        DEBIAN_FRONTEND: noninteractive
-
-# I stopped here as Hetzner blocks port 25 for SMTP, so the next step would be to configure a smtp relay on port 587, for example gmail or AWS SES.
-# It will require manual work outside of hetzner, so I am skipping automation for this part for now.
-# To configure amazon SES with postfix use: https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html https://docs.aws.amazon.com/ses/latest/dg/postfix.html
-# edit: I also provide a playbook - configure_postfix.yml, which does the server configuration part.
-
-# Install near
-
+# Install all packages
 - hosts: backup
   tasks:
     - name: Fetch nodejs
@@ -150,28 +85,50 @@
       become: yes
       args:
         creates: /etc/apt/sources.list.d/nodesource.list
-    
-    - name: Install nodejs & npm
-      apt: 
-        name : "{{ item }}"
-        state: present
-      with_items:
-        - build-essential
-        - nodejs
-      become: yes
 
+    - name: Get all packages
+      apt: 
+        pkg:
+          - mailutils
+          - debconf
+          - debconf-utils
+          - build-essential
+          - nodejs
+          - git 
+          - binutils-dev
+          - libcurl4-openssl-dev
+          - zlib1g-dev
+          - libdw-dev
+          - libiberty-dev
+          - cmake
+          - gcc
+          - g++
+          - python3
+          - docker.io
+          - protobuf-compiler
+          - libssl-dev
+          - pkg-config 
+          - clang
+          - llvm
+          - cargo
+          - python3-pip
+          - clang
+          - make
+          - jq
+          - ccze
+          - awscli
+          - golang-go
+          - prometheus-node-exporter
+        update_cache: false
+        state: latest
+      become: yes
+      
     - name: Update npm
       community.general.npm:
         name: npm
         global: yes
         state: latest
       become: yes
-    
-    # - name: Check node version
-    #   command: node -v
-    #   register: version_output
-    # - debug:
-    #     var: version_output.stdout_lines
 
     - name: install nearcli
       community.general.npm:
@@ -183,38 +140,7 @@
     
     - name: add nearcli to bashrc
       lineinfile: dest=~/.bashrc line='export NEAR_ENV={{ network }}' insertafter='EOF' state=present
-
-    - name: Get developer tools
-      apt: 
-        name : "{{ item }}"
-        state: present
-      with_items:
-        - git 
-        - binutils-dev
-        - libcurl4-openssl-dev
-        - zlib1g-dev
-        - libdw-dev
-        - libiberty-dev
-        - cmake
-        - gcc
-        - g++
-        - python3
-        - docker.io
-        - protobuf-compiler
-        - libssl-dev
-        - pkg-config 
-        - clang
-        - llvm
-        - cargo
-        - python3-pip
-        - clang
-        - make
-        - jq
-        - ccze
-        - awscli
-        - golang-go
-      become: yes
-    
+ 
     - name: Upgrade pip
       pip:
         name: pip
@@ -297,12 +223,6 @@
         state: started
         enabled: yes
       become: yes
-    
-    - name: Get prometheus node exporter
-      apt: 
-        name : prometheus-node-exporter
-        state: present
-      become: yes
 
     - name: Clone prometheus near exporter repo
       git:
@@ -353,17 +273,68 @@
         path: ~/logs
         state: directory
 
-    - name: Create checkscript
+    - name: Create scripts
       template:
-        src: templates/checkscript.j2
-        dest: ~/scripts/checkscript.sh
+        src: templates/{{ item }}.j2
+        dest: ~/scripts/{{ item }}.sh
+      with_items:
+      - checkscript
+      - backupscript
+      - restorescript
+      - ping
+      - sendmail
 
-    - name: Create pingscript
-      template:
-        src: templates/ping.j2
-        dest: ~/scripts/ping.sh
+# Configure firewall and postfix
+- hosts: nodes
+  become: yes
+  tasks:
+    - community.general.ufw:
+        rule: allow
+        name: OpenSSH
 
-    - name: Create mailscript
-      template:
-        src: templates/sendmail.j2
-        dest: ~/scripts/sendmail.sh
+    - name: ufw incoming policy
+      community.general.ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
+
+    - name: ufw outgoing policy
+      community.general.ufw:
+        state: enabled
+        policy: allow
+        direction: outgoing
+
+    - name: allow rpc, neard, prometheus
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      with_items:
+        - 3030
+        - 24567
+        - 9333
+        - 9100
+
+    - name: Configure mailutils
+      debconf:
+        name: postfix
+        question: postfix postfix/main_mailer_type
+        value: Internet Site
+        vtype: select
+
+    - name: Configure mailutilsv2
+      debconf:
+        name: postfix
+        question: postfix postfix/mailname
+        value: "{{ inventory_hostname }}"
+        vtype: string
+
+    - name: make debconf changes active
+      command: "dpkg-reconfigure postfix"
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+# I stopped here as Hetzner blocks port 25 for SMTP, so the next step would be to configure a smtp relay on port 587, for example gmail or AWS SES.
+# It will require manual work outside of hetzner, so I am skipping automation for this part for now.
+# To configure amazon SES with postfix use: https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html https://docs.aws.amazon.com/ses/latest/dg/postfix.html
+# edit: I also provide a playbook - configure_postfix.yml, which does the server configuration part if you're using amazon.

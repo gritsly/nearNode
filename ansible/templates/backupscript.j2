@@ -1,0 +1,37 @@
+#!/bin/bash
+
+DATE=$(date +%Y-%m-%d-%H-%M)
+DATADIR=/home/{{ ansible_user }}/.near
+BACKUPDIR=/home/{{ ansible_user }}/backups
+
+mkdir $BACKUPDIR
+
+sudo systemctl stop neard.service
+
+wait
+
+echo "NEAR node was stopped" | ts
+
+if [ -d "$BACKUPDIR" ]; then
+    echo "Backup started" | ts
+
+    tar -zcvf ${BACKUPDIR}/neardbbackup.${DATE}.tar.gz -C $DATADIR data
+
+    # Submit backup completion status, you can use healthchecks.io, betteruptime.com or other services
+    # Example
+    curl -fsS -m 10 --retry 5 -o /dev/null {{ backup_check_url }}
+
+    echo "Backup completed" | ts
+
+    # leave only last three backups
+    ls ${BACKUPDIR}/* -td | tail -n +4 | xargs -I {} rm {}
+
+
+else
+    echo $BACKUPDIR is not created. Check your permissions.
+    exit 0
+fi
+
+sudo systemctl start neard.service
+
+echo "NEAR node was started" | ts
