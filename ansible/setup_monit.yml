@@ -95,14 +95,30 @@
         port: '3000'
         proto: tcp
 
-    - name: Get mailutils
-      apt: 
-        name : "{{ item }}"
+    - name: Add an Apt signing key, grafana 
+      ansible.builtin.apt_key:
+        url: https://packages.grafana.com/gpg.key
         state: present
-      with_items:
-        - mailutils
-        - debconf
-        - debconf-utils
+
+    - name: Add grafana repo
+      ansible.builtin.apt_repository:
+        repo: deb https://packages.grafana.com/oss/deb stable main
+        state: present
+
+    - name: Get all packages
+      apt: 
+        pkg:
+          - mailutils
+          - debconf
+          - debconf-utils
+          - prometheus
+          - prometheus-pushgateway
+          - prometheus-alertmanager
+          - prometheus-node-exporter
+          - grafana
+        update_cache: false
+        state: latest
+      become: yes
 
     - name: Configure mailutils
       debconf:
@@ -126,27 +142,6 @@
 # I stopped here as Hetzner blocks port 25 for SMTP, so the next step would be to configure a smtp relay on port 587, for example gmail or AWS SES.
 # It will require manual work outside of hetzner, so I am skipping automation for this part for now.
 # To configure amazon SES with postfix use: https://docs.aws.amazon.com/ses/latest/dg/send-email-smtp.html https://docs.aws.amazon.com/ses/latest/dg/postfix.html
-
-    - name: Add an Apt signing key, grafana 
-      ansible.builtin.apt_key:
-        url: https://packages.grafana.com/gpg.key
-        state: present
-
-    - name: Add grafana repo
-      ansible.builtin.apt_repository:
-        repo: deb https://packages.grafana.com/oss/deb stable main
-        state: present
-
-    - name: Get prometheus packages
-      apt: 
-        name : "{{ item }}"
-        state: present
-      with_items:
-        - prometheus
-        - prometheus-pushgateway
-        - prometheus-alertmanager
-        - prometheus-node-exporter
-        - grafana
 
     - name: Insert prometheus config
       template:
