@@ -4,7 +4,11 @@ This is a repository containing scripts and automation for NEAR StakeWars part3:
 
 https://near.org/stakewars/
 
-### Progress so far:
+You can find the whole deployment guide at my blog:
+
+https://blog.gritsly.link/stake-wars-challenge-005/
+
+### Content:
 
 - Terraform : defined three resources - two main nodes and one monitoring node using Hetzner cloud
 
@@ -32,7 +36,6 @@ https://near.org/stakewars/
 2. Create a 'terraform.tfvars' file with the API key and hostname (it will be used for PTR record):
 ```
 hcloud_token = "xxxxxxxxxxxxxxxxxxxxxxx"
-server_hostname = <your hostname>
 ```
 3. Run Terraform
 4. Populate ansible/hosts file with your variables
